@@ -55,10 +55,10 @@ something like
  8 opStack: add 000000 load [swap] rotl dup 000000 store
  ... 
 ```
-with the top of the pixel stack on the left, and previously the executed
+with the top of the pixel stack on the left, and the previously executed
 instruction `[bracketed]`.
 
-### styntax
+### syntax
 #### header
 on the first line of the program you must specify the width of the program 
 respectively as decimals
