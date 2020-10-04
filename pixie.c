@@ -9,7 +9,6 @@
 #define OP_SS 1000
 #define WMAXLEN 100
 
-
 #define RED(p) ((uint8_t)(p >> 16))
 #define GREEN(p) ((uint8_t)(p >> 8))
 #define BLUE(p) ((uint8_t)p)
@@ -53,7 +52,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // opcodes grouped by the number of values they need on the top of the stack
 // to function correctly.
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 typedef enum { O_NOOP, O_RAND, O_PUSH, AFTEROP0 } OP0;
 
@@ -74,10 +73,11 @@ typedef enum {
 } OP2;
 
 char const *mnem[OPCOUNT] = {
-    [O_NOOP] = "noop", [O_ROTR] = "rotr", [O_ROTL] = "rotl", [O_AND] = "and",
-    [O_OR] = "or",     [O_ADD] = "add",   [O_SUB] = "sub",   [O_RAND] = "rand",
-    [O_MUL] = "mul",   [O_DIV] = "div",   [O_POP] = "pop",   [O_DUP] = "dup",
-    [O_SWAP] = "swap", [O_STORE] = "store", [O_LOAD] = "load" };
+    [O_NOOP] = "noop", [O_ROTR] = "rotr",   [O_ROTL] = "rotl",
+    [O_AND] = "and",   [O_OR] = "or",       [O_ADD] = "add",
+    [O_SUB] = "sub",   [O_RAND] = "rand",   [O_MUL] = "mul",
+    [O_DIV] = "div",   [O_POP] = "pop",     [O_DUP] = "dup",
+    [O_SWAP] = "swap", [O_STORE] = "store", [O_LOAD] = "load"};
 
 // generic structures and types ////////////////////////////////////////////////
 
@@ -154,7 +154,6 @@ P_RES parseHead() {
     return OK;
 }
 
-
 // body parsing functions and helpers //////////////////////////////////////////
 
 void advance() { lastChar = getchar(); }
@@ -166,15 +165,14 @@ void advance() { lastChar = getchar(); }
 
 #define MAXPIXEL ((Pixel)0xFFFFFF)
 
-#define baseShift(v)                                             \
-    (workingPixel = (workingPixel * base) ,                           \
-    workingPixel += lastWord[i] - v)
+#define baseShift(v)                                                           \
+    (workingPixel = (workingPixel * base), workingPixel += lastWord[i] - v)
 
 // parse numerical literals
 P_RES parseLit(bool push) {
     workingPixel = 0;
     uint8_t base;
-    
+
     // where to start looking for digits
     int start = 2;
 
@@ -232,270 +230,274 @@ P_RES parseLit(bool push) {
         return P_EBADLIT;
     }
 
-// discards whitespace and comments
-void discardBreak() {
-    bool inComment = false;
-    for (;; advance()) {
-        if isEOF
+    // discards whitespace and comments
+    void discardBreak() {
+        bool inComment = false;
+        for (;; advance()) {
+            if isEOF
+                return;
+            if (inComment) {
+                inComment = !(lastChar == '\n');
+                continue;
+            }
+            inComment = lastChar == ';';
+            if isBreak
+                continue;
             return;
-        if (inComment) {
-            inComment = !(lastChar == '\n');
-            continue;
-        }
-        inComment = lastChar == ';';
-        if isBreak
-            continue;
-        return;
-    }
-}
-
-// parse contiguous characters seperated by whitespace and comments.
-P_RES parseWord() {
-    discardBreak();
-    int i = 0;
-    lastWord[0] = 0;
-    if isEOF
-        return EOF;
-
-    for (; (!isBreak) && (!isEOF); (i++, advance())) {
-        if (i == WMAXLEN)
-            return P_EOVERWORD;
-        lastWord[i] = lastChar;
-    }
-    lastWord[i] = 0;
-    return OK;
-}
-
-// takes the text of the last word parsed and tries to put a corresponding
-// opcode on the stack. if the opcode is unrecognized, returns 'P_EBADWORD'
-P_RES parseOp() {
-    {
-        P_RES res = parseWord();
-        if (res != OK)
-            return res;
-    }
-
-    // Check if special
-    switch (lastWord[0]) {
-    case '#':
-        return parseLit(true);
-    }
-    // Try all opcodes
-    for (OPCODE op = 0; op < OPCOUNT; op++) {
-
-        if (mnem[op] == 0)
-            continue; // non-mnemonic operation
-
-        if (!strcmp(mnem[op], lastWord)) {
-            pushOp(op);
-            return OK;
         }
     }
-    return P_EBADWORD;
-}
 
-// iterate through the body of the script trying to applying the opcode parser
-P_RES parseBody() {
-    advance();
-    P_RES res;
-    do
-        res = parseOp();
-    while (res == OK);
+    // parse contiguous characters seperated by whitespace and comments.
+    P_RES parseWord() {
+        discardBreak();
+        int i = 0;
+        lastWord[0] = 0;
+        if isEOF
+            return EOF;
 
-    if (res == EOF)
+        for (; (!isBreak) && (!isEOF); (i++, advance())) {
+            if (i == WMAXLEN)
+                return P_EOVERWORD;
+            lastWord[i] = lastChar;
+        }
+        lastWord[i] = 0;
         return OK;
-    return res;
-}
+    }
 
-// compute the pixel at a give offset by executing all instructions
-// on the opStack FIFO
-E_RES pixel(size_t row, size_t col) {
-    opPtr = 0;
-    
-    // push column and row to the pixel stack
-    pushPix((Pixel)row);
-    pushPix((Pixel)col);
-
-    // debugPixStack();
-
-    while ((ssize_t)opPtr <= opTop) {
-        if (debug) {
-            debugPixStack();
-            debugOpStack();
-        }
-        Oper theOp = botOp;
-        opPtr++;
-
-        // nullary (0 argument) operations:
-        switch ((OP0)theOp.op) {
-        case O_PUSH:
-            pushPix(theOp.pixel);
-            continue;
-        case O_RAND:
-            pushPix(rand());
-            continue;
-        case O_NOOP:
-            continue;
-        case AFTEROP0:; // warnings w/o
+    // takes the text of the last word parsed and tries to put a corresponding
+    // opcode on the stack. if the opcode is unrecognized, returns 'P_EBADWORD'
+    P_RES parseOp() {
+        {
+            P_RES res = parseWord();
+            if (res != OK)
+                return res;
         }
 
-        // 1 arity operators:
-        Pixel oper1;
-        popPix(&oper1);
-        
-        switch ((OP1)theOp.op) {
-        case O_DUP:
-            pushPix(oper1);
-            pushPix(oper1);
-            continue;
-        case O_POP:
-            continue;
-        case O_LOAD:
-            pushPix(pixStack[oper1]);
-            continue;
-        case AFTEROP1:; // warnings w/o
+        // Check if special
+        switch (lastWord[0]) {
+        case '#':
+            return parseLit(true);
         }
+        // Try all opcodes
+        for (OPCODE op = 0; op < OPCOUNT; op++) {
 
-        // 2 arity operators:
-        Pixel oper2;
-        popPix(&oper2);
+            if (mnem[op] == 0)
+                continue; // non-mnemonic operation
 
-        switch ((OP2)theOp.op) {
-        case O_ADD:
-            pushPix(oper1 + oper2);
-            continue;
+            if (!strcmp(mnem[op], lastWord)) {
+                pushOp(op);
+                return OK;
+            }
+        }
+        return P_EBADWORD;
+    }
 
-        case O_SUB:
-            pushPix(oper1 - oper2);
-            continue;
+    // iterate through the body of the script trying to applying the opcode
+    // parser
+    P_RES parseBody() {
+        advance();
+        P_RES res;
+        do
+            res = parseOp();
+        while (res == OK);
 
-        case O_MUL:
-            pushPix(oper1 * oper2);
-            continue;
+        if (res == EOF)
+            return OK;
+        return res;
+    }
 
-        case O_DIV:
-            pushPix(oper1 / oper2);
-            continue;
+    // compute the pixel at a give offset by executing all instructions
+    // on the opStack FIFO
+    E_RES pixel(size_t row, size_t col) {
+        opPtr = 0;
 
-        case O_SWAP:
-            pushPix(oper1);
-            pushPix(oper2);
-            continue;
+        // push column and row to the pixel stack
+        pushPix((Pixel)row);
+        pushPix((Pixel)col);
 
-        case O_AND:
-            pushPix(oper1 & oper2);
-            continue;
+        // debugPixStack();
 
-        case O_OR:
-            pushPix(oper1 | oper2);
-            continue;
+        while ((ssize_t)opPtr <= opTop) {
+            if (debug) {
+                debugPixStack();
+                debugOpStack();
+            }
+            Oper theOp = botOp;
+            opPtr++;
 
-        case O_ROTL:
-            pushPix(rot24l(oper2, oper1));
-            continue;
+            // nullary (0 argument) operations:
+            switch ((OP0)theOp.op) {
+            case O_PUSH:
+                pushPix(theOp.pixel);
+                continue;
+            case O_RAND:
+                pushPix(rand());
+                continue;
+            case O_NOOP:
+                continue;
+            case AFTEROP0:; // warnings w/o
+            }
 
-        case O_ROTR:
-            pushPix(rot24r(oper2, oper1));
-            continue;
-            
-        case O_STORE:
-            pixStack[oper1] = oper2;
-            continue;
+            // 1 arity operators:
+            Pixel oper1;
+            popPix(&oper1);
 
-        case OPCOUNT:
+            switch ((OP1)theOp.op) {
+            case O_DUP:
+                pushPix(oper1);
+                pushPix(oper1);
+                continue;
+            case O_POP:
+                continue;
+            case O_LOAD:
+                pushPix(pixStack[oper1]);
+                continue;
+            case AFTEROP1:; // warnings w/o
+            }
+
+            // 2 arity operators:
+            Pixel oper2;
+            popPix(&oper2);
+
+            switch ((OP2)theOp.op) {
+            case O_ADD:
+                pushPix(oper1 + oper2);
+                continue;
+
+            case O_SUB:
+                pushPix(oper1 - oper2);
+                continue;
+
+            case O_MUL:
+                pushPix(oper1 * oper2);
+                continue;
+
+            case O_DIV:
+                pushPix(oper1 / oper2);
+                continue;
+
+            case O_SWAP:
+                pushPix(oper1);
+                pushPix(oper2);
+                continue;
+
+            case O_AND:
+                pushPix(oper1 & oper2);
+                continue;
+
+            case O_OR:
+                pushPix(oper1 | oper2);
+                continue;
+
+            case O_ROTL:
+                pushPix(rot24l(oper2, oper1));
+                continue;
+
+            case O_ROTR:
+                pushPix(rot24r(oper2, oper1));
+                continue;
+
+            case O_STORE:
+                pixStack[oper1] = oper2;
+                continue;
+
+            case OPCOUNT:
+                return E_EINVALIDOP;
+            }
             return E_EINVALIDOP;
         }
-        return E_EINVALIDOP;
+        if (debug)
+            debugPixStack();
+        debug = false;
+        Pixel pix;
+        popPix(&pix);
+
+        printf("%03hhu %03hhu %03hhu\t\t", RED(pix), GREEN(pix), BLUE(pix));
+        return OK;
     }
-    if (debug)
-        debugPixStack();
-    debug = false;
-    Pixel pix;
-    popPix(&pix);
 
-    printf("%03hhu %03hhu %03hhu\t\t", RED(pix), GREEN(pix), BLUE(pix));
-    return OK;
-}
+    // parse the list of initialization values just below the dimension header
+    G_RES parseInit() {
+        advance();
+        G_RES res;
 
-// parse the list of initialization values just below the dimension header
-G_RES parseInit() {
-    advance();
-    G_RES res;
+        for (;;) {
+            res = parseWord();
+            if (res != OK)
+                return res;
 
-    for (;;) {
-        res = parseWord();
-        if (res != OK) return res;
-
-        switch(lastWord[0]) {
+            switch (lastWord[0]) {
             case '#':
                 res = parseLit(false);
-                if (res != OK) return res;
+                if (res != OK)
+                    return res;
                 pushPix(workingPixel);
                 continue;
             case '-':
-                return OK;          
+                return OK;
             default:
-                dinfo("%s\n",lastWord);
-                dinfo("lastChar: %c\n",lastChar);
+                dinfo("%s\n", lastWord);
+                dinfo("lastChar: %c\n", lastChar);
                 return P_EBADWORD;
+            }
         }
     }
-    
-}
 
-// debugging functions /////////////////////////////////////////////////////////
-void debugOpStack() {
-    dinfo(" %ld opStack: ", opTop + 1);
+    // debugging functions
+    // /////////////////////////////////////////////////////////
+    void debugOpStack() {
+        dinfo(" %ld opStack: ", opTop + 1);
 
-    for (int i = 0; i <= opTop; i++) {
-        if (i == (int)opPtr)
-            dinfo("[");
-        Pixel pix;
-        OPCODE op = opStack[i].op;
+        for (int i = 0; i <= opTop; i++) {
+            if (i == (int)opPtr)
+                dinfo("[");
+            Pixel pix;
+            OPCODE op = opStack[i].op;
 
-        if (op == O_PUSH) {
-            pix = opStack[i].pixel;
-            dinfo("%02X%02X%02X", RED(pix), GREEN(pix), BLUE(pix));
+            if (op == O_PUSH) {
+                pix = opStack[i].pixel;
+                dinfo("%02X%02X%02X", RED(pix), GREEN(pix), BLUE(pix));
 
-        } else if (mnem[op] == 0) {
-            dinfo("<invalid>");
+            } else if (mnem[op] == 0) {
+                dinfo("<invalid>");
 
-        } else
-            dinfo(mnem[op]);
+            } else
+                dinfo(mnem[op]);
 
-        if (i == (int)opPtr)
-            dinfo("]");
-        dinfo(" ");
+            if (i == (int)opPtr)
+                dinfo("]");
+            dinfo(" ");
+        }
+        dinfo("\n");
     }
-    dinfo("\n");
-}
 
-void debugPixStack() {
-    dinfo(" %ld pixStack: ", pixTop + 1);
+    void debugPixStack() {
+        dinfo(" %ld pixStack: ", pixTop + 1);
 
-    for (int i = pixTop; i >= 0; i--)
-        dinfo("%06X ", pixStack[i]);
+        for (int i = pixTop; i >= 0; i--)
+            dinfo("%06X ", pixStack[i]);
 
-    dinfo("\n");
-}
-
-// main function ///////////////////////////////////////////////////////////////
-
-int main() {
-
-    // prints a debug trace of the generation of a single
-    // pixel
-    if (getenv("PIXIE_DEBUG") != NULL)
-        debug = true;
-
-    P_RES perr;
-    if ((perr = parseHead()) != OK) {
-        dinfo("Invalid header!\n");
-        return -1;
+        dinfo("\n");
     }
-    if ((perr = parseInit()) != OK) {
-        dinfo("Initialization error: ");
-        switch ((int)perr) {
+
+    // main function
+    // ///////////////////////////////////////////////////////////////
+
+    int main() {
+
+        // prints a debug trace of the generation of a single
+        // pixel
+        if (getenv("PIXIE_DEBUG") != NULL)
+            debug = true;
+
+        P_RES perr;
+        if ((perr = parseHead()) != OK) {
+            dinfo("Invalid header!\n");
+            return -1;
+        }
+        if ((perr = parseInit()) != OK) {
+            dinfo("Initialization error: ");
+            switch ((int)perr) {
             case EOF:
                 dinfo("encountered end of file before body");
                 break;
@@ -507,66 +509,65 @@ int main() {
                 break;
             default:
                 dinfo("malformed pixel literal in initialization section\n");
-        }
-        return -1;
-    }
-
-    // parse body of script
-    if ((perr = parseBody()) != OK) {
-        dinfo("Parse error: ");
-        switch (perr) {
-        case P_EOVEROP:
-            dinfo("Instruction stack overflow!\n");
-            break;
-        case P_EOVERWORD:
-            dinfo("word length limit exceeded!\n");
-            break;
-        case P_EBADLIT:
-            dinfo("invalid character in pixel literal\n");
-            break;
-        case P_EUNDERLIT:
-            dinfo("bad pixel literal; no digits!\n");
-            break;
-        case P_EBADWORD:
-            dinfo("unrecognized word!\n");
-            break;
-        default:
-            dinfo("encountered unknown error while parsing!\n");
-        }
-        return -1;
-    }
-
-    header();
-
-    // iterate through pixel indices and apply the program
-    // to each.
-    for (size_t r = 0, i = 0; r < height; r++)
-        for (size_t c = 0; c < width; (c++, i++)) {
-
-            // break after 5 pixels. this currently keeps the output 
-            // within a width of 80 characters.
-            if ((i % 5) == 0)
-                putc('\n', stdout);
-
-            E_RES e;
-            if ((e = pixel(r, c)) != OK) {
-                switch (e) {
-                case E_EOVERFLOW:
-                    dinfo("Pixel stack overflow!\n");
-                    break;
-                case E_EUNDERFLOW:
-                    dinfo("Pixel stack underflow!\n");
-                    break;
-                case E_EINVALIDOP:
-                    dinfo("Encountered invalid instruction!\n");
-                    break;
-                default:
-                    dinfo("Unknown error. bug.\n");
-                }
-                debugOpStack();
-                debugPixStack();
-                return -1;
             }
-
+            return -1;
         }
-}
+
+        // parse body of script
+        if ((perr = parseBody()) != OK) {
+            dinfo("Parse error: ");
+            switch (perr) {
+            case P_EOVEROP:
+                dinfo("Instruction stack overflow!\n");
+                break;
+            case P_EOVERWORD:
+                dinfo("word length limit exceeded!\n");
+                break;
+            case P_EBADLIT:
+                dinfo("invalid character in pixel literal\n");
+                break;
+            case P_EUNDERLIT:
+                dinfo("bad pixel literal; no digits!\n");
+                break;
+            case P_EBADWORD:
+                dinfo("unrecognized word!\n");
+                break;
+            default:
+                dinfo("encountered unknown error while parsing!\n");
+            }
+            return -1;
+        }
+
+        header();
+
+        // iterate through pixel indices and apply the program
+        // to each.
+        for (size_t r = 0, i = 0; r < height; r++)
+            for (size_t c = 0; c < width; (c++, i++)) {
+
+                // break after 5 pixels. this currently keeps the output
+                // within a width of 80 characters.
+                if ((i % 5) == 0)
+                    putc('\n', stdout);
+
+                E_RES e;
+                if ((e = pixel(r, c)) != OK) {
+                    switch (e) {
+                    case E_EOVERFLOW:
+                        dinfo("Pixel stack overflow!\n");
+                        break;
+                    case E_EUNDERFLOW:
+                        dinfo("Pixel stack underflow!\n");
+                        break;
+                    case E_EINVALIDOP:
+                        dinfo("Encountered invalid instruction!\n");
+                        break;
+                    default:
+                        dinfo("Unknown error. bug.\n");
+                    }
+                    debugOpStack();
+                    debugPixStack();
+                    return -1;
+                }
+            }
+    }
