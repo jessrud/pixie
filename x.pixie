@@ -1,0 +1,28 @@
+80 60
+#x00070F ; a stack initialization value
+----
+; ^ header declares image dimensions and initializes the stack by pushing a 
+; (possibly empty) list of numbers onto it. a line of dashes signals the end of
+; the header. if the list of initializers is empty, the dashed line must
+; still be present.
+
+; rotate initial value x bits through the color space (the x component of 
+; the pixel coord)
+
+;;;;; initial state ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; #0 #x00070F  ; accumulator with initial value
+; #1 y coordinate
+; #2 x coordinate
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+add          ; add x and y
+
+#0 load      ; copy value at #0 to top (#2)
+swap         ; swap copy of acc for coord sum
+rotl         ; rotate sum bits in copy of accumlator value
+dup #0 store ; duplicate value then move the copy to address #0 (accumulator)
+
+;;;;; final state ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; #0 new pixel stored for next iteration
+; #1 new pixel consumed for display
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
