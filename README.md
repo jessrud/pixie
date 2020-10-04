@@ -69,7 +69,7 @@ like:
 ```
 #### optional initialization values
 following the header, you are allowed to enter a list of integer literals that 
-will be pushed ontothe stack when the program starts. The values closer to the 
+will be pushed onto the stack when the program starts. The values closer to the 
 bottom of this list will be closer to thetop of the stack. example:
 ```
 #xFF0000 ; a red pixel
