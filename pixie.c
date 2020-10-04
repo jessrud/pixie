@@ -9,10 +9,12 @@
 #define OP_SS 1000
 #define WMAXLEN 100
 
+
 #define RED(p) ((uint8_t)(p >> 16))
 #define GREEN(p) ((uint8_t)(p >> 8))
 #define BLUE(p) ((uint8_t)p)
 
+// rotational shift operators //////////////////////////////////////////////////
 #define rot24l(num, amt)                                                       \
     (((num << (amt % 24)) | (num >> (24 - (amt % 24)))) & 0x00FFFFFF)
 
@@ -22,13 +24,13 @@
 #define isalpha(c) ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
 
 #define dinfo(s, ...) fprintf(stderr, s, ##__VA_ARGS__)
-
+// helpers for dealing with the oper stack /////////////////////////////////////
 #define pushOp(oper) opStack[++opTop].op = oper
 
 #define topOp opStack[opTop]
 #define botOp opStack[opPtr]
 #define popOp() opStack[opTop--]
-
+// helpers for dealing with the pixel stack ////////////////////////////////////
 #define pushPix(p)                                                             \
     ({                                                                         \
         if (pixTop > PIX_SS - 1) {                                             \
@@ -48,10 +50,11 @@
         }                                                                      \
     })
 
-typedef uint32_t Pixel;
+////////////////////////////////////////////////////////////////////////////////
+// opcodes grouped by the number of values they need on the top of the stack
+// to function correctly.
+//////////////////////////////////////////////////////////////////////////////// 
 
-// the structure that scripts get 'parsed into', and that gets evaluated
-// to generate the image.
 typedef enum { O_NOOP, O_RAND, O_PUSH, AFTEROP0 } OP0;
 
 typedef enum { O_POP = AFTEROP0, O_DUP, O_LOAD, AFTEROP1 } OP1;
@@ -70,18 +73,21 @@ typedef enum {
     OPCOUNT
 } OP2;
 
-typedef int OPCODE;
-
-typedef struct {
-    OPCODE op;
-    Pixel pixel;
-} Oper;
-
 char const *mnem[OPCOUNT] = {
     [O_NOOP] = "noop", [O_ROTR] = "rotr", [O_ROTL] = "rotl", [O_AND] = "and",
     [O_OR] = "or",     [O_ADD] = "add",   [O_SUB] = "sub",   [O_RAND] = "rand",
     [O_MUL] = "mul",   [O_DIV] = "div",   [O_POP] = "pop",   [O_DUP] = "dup",
     [O_SWAP] = "swap", [O_STORE] = "store", [O_LOAD] = "load" };
+
+// generic structures and types ////////////////////////////////////////////////
+
+typedef int OPCODE;
+typedef uint32_t Pixel;
+
+typedef struct {
+    OPCODE op;
+    Pixel pixel;
+} Oper;
 
 // machine state ///////////////////////////////////////////////////////////////
 
@@ -103,7 +109,7 @@ int lastChar;
 Pixel workingPixel;
 char lastWord[WMAXLEN + 1];
 
-////////////////////////////////////////////////////////////////////////////////
+// Error/Return codes //////////////////////////////////////////////////////////
 
 #define OK 0
 
@@ -114,7 +120,7 @@ typedef enum {
     E_EINVALIDOP,
 } E_RES;
 
-// parsing return codes
+// parsing error codes
 typedef enum {
     P_EOVERWORD = -400,
     P_EOVEROP,
@@ -124,10 +130,14 @@ typedef enum {
     P_EBADWORD,
 } P_RES;
 
+// generic error codes
 typedef int G_RES;
 
+// helpers for debugging the state of a running script
 void debugOpStack();
 void debugPixStack();
+
+// header generation & parsing ////////////////////////////////////////////////
 
 // generate ppm header
 void header() {
@@ -144,6 +154,9 @@ P_RES parseHead() {
     return OK;
 }
 
+
+// body parsing functions and helpers //////////////////////////////////////////
+
 void advance() { lastChar = getchar(); }
 
 #define isBreak                                                                \
@@ -156,6 +169,8 @@ void advance() { lastChar = getchar(); }
 #define baseShift(v)                                             \
     (workingPixel = (workingPixel * base) ,                           \
     workingPixel += lastWord[i] - v)
+
+// parse numerical literals
 P_RES parseLit(bool push) {
     workingPixel = 0;
     uint8_t base;
@@ -216,8 +231,8 @@ P_RES parseLit(bool push) {
         }
         return P_EBADLIT;
     }
-}
 
+// discards whitespace and comments
 void discardBreak() {
     bool inComment = false;
     for (;; advance()) {
@@ -234,6 +249,7 @@ void discardBreak() {
     }
 }
 
+// parse contiguous characters seperated by whitespace and comments.
 P_RES parseWord() {
     discardBreak();
     int i = 0;
@@ -250,6 +266,8 @@ P_RES parseWord() {
     return OK;
 }
 
+// takes the text of the last word parsed and tries to put a corresponding
+// opcode on the stack. if the opcode is unrecognized, returns 'P_EBADWORD'
 P_RES parseOp() {
     {
         P_RES res = parseWord();
@@ -276,6 +294,7 @@ P_RES parseOp() {
     return P_EBADWORD;
 }
 
+// iterate through the body of the script trying to applying the opcode parser
 P_RES parseBody() {
     advance();
     P_RES res;
@@ -292,6 +311,7 @@ P_RES parseBody() {
 // on the opStack FIFO
 E_RES pixel(size_t row, size_t col) {
     opPtr = 0;
+    
     // push column and row to the pixel stack
     pushPix((Pixel)row);
     pushPix((Pixel)col);
@@ -306,6 +326,7 @@ E_RES pixel(size_t row, size_t col) {
         Oper theOp = botOp;
         opPtr++;
 
+        // nullary (0 argument) operations:
         switch ((OP0)theOp.op) {
         case O_PUSH:
             pushPix(theOp.pixel);
@@ -321,7 +342,7 @@ E_RES pixel(size_t row, size_t col) {
         // 1 arity operators:
         Pixel oper1;
         popPix(&oper1);
-
+        
         switch ((OP1)theOp.op) {
         case O_DUP:
             pushPix(oper1);
@@ -396,6 +417,7 @@ E_RES pixel(size_t row, size_t col) {
     return OK;
 }
 
+// parse the list of initialization values just below the dimension header
 G_RES parseInit() {
     advance();
     G_RES res;
@@ -421,6 +443,7 @@ G_RES parseInit() {
     
 }
 
+// debugging functions /////////////////////////////////////////////////////////
 void debugOpStack() {
     dinfo(" %ld opStack: ", opTop + 1);
 
@@ -455,6 +478,8 @@ void debugPixStack() {
 
     dinfo("\n");
 }
+
+// main function ///////////////////////////////////////////////////////////////
 
 int main() {
 
@@ -514,15 +539,12 @@ int main() {
     header();
 
     // iterate through pixel indices and apply the program
-    // to them.
+    // to each.
     for (size_t r = 0, i = 0; r < height; r++)
         for (size_t c = 0; c < width; (c++, i++)) {
 
-            // break after 10 pixels
-            // something said that lines can only
-            // be 70 chars wide, but i don't think
-            // any real implementations care.
-
+            // break after 5 pixels. this currently keeps the output 
+            // within a width of 80 characters.
             if ((i % 5) == 0)
                 putc('\n', stdout);
 
