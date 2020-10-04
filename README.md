@@ -60,8 +60,9 @@ instruction `[bracketed]`.
 
 ### syntax
 #### header
-on the first line of the program you must specify the width of the program 
-respectively as decimals
+on the first line of the program you must specify the width and height of the program 
+respectively as decimals.
+
 like:
 ```
 800 600
