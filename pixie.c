@@ -14,6 +14,7 @@
 #define BLUE(p) ((uint8_t)p)
 
 // rotational shift operators //////////////////////////////////////////////////
+
 #define rot24l(num, amt)                                                       \
     (((num << (amt % 24)) | (num >> (24 - (amt % 24)))) & 0x00FFFFFF)
 
@@ -23,13 +24,17 @@
 #define isalpha(c) ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
 
 #define dinfo(s, ...) fprintf(stderr, s, ##__VA_ARGS__)
+
 // helpers for dealing with the oper stack /////////////////////////////////////
+
 #define pushOp(oper) opStack[++opTop].op = oper
 
 #define topOp opStack[opTop]
 #define botOp opStack[opPtr]
 #define popOp() opStack[opTop--]
+
 // helpers for dealing with the pixel stack ////////////////////////////////////
+
 #define pushPix(p)                                                             \
     ({                                                                         \
         if (pixTop > PIX_SS - 1) {                                             \
@@ -479,7 +484,7 @@ P_RES parseLit(bool push) {
         dinfo("\n");
     }
 
-    // main function ///////////////////////////////////////////////////////////
+    //////////////// ///////////////////////////////////////////////////////////
 
     int main() {
 
